@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Custom Mock Data Engine</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        },
+                        accent: {
+                            cyan: '#06b6d4',
+                            emerald: '#10b981',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Lock Page Height & Prevent Body Scroll Bounce */
+        html, body {
+            height: 100vh;
+            max-height: 100vh;
+            overflow: hidden !important;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+
+        /* Dark Theme Variables */
+        html.dark {
+            background-color: #0b0f19;
+            color: #f1f5f9;
+        }
+        /* Light Theme Variables */
+        html:not(.dark) {
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+
+        /* Number Input Spinners */
+        html.dark input[type="number"] {
+            color-scheme: dark;
+        }
+        html.dark input[type="number"]::-webkit-inner-spin-button,
+        html.dark input[type="number"]::-webkit-outer-spin-button {
+            filter: invert(0.85);
+            opacity: 0.8;
+            cursor: pointer;
+        }
+
+        html:not(.dark) input[type="number"] {
+            color-scheme: light;
+        }
+
+        /* Isolated Custom Scrollbars */
+        .custom-scroll {
+            overscroll-behavior: contain;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        html.dark .custom-scroll::-webkit-scrollbar-track {
+            background: #0b0f19;
+        }
+        html.dark .custom-scroll::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        html:not(.dark) .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        html:not(.dark) .custom-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        /* Dynamic Theme Component Utility Classes */
+        html.dark .theme-panel {
+            background-color: #131b2e;
+            border-color: #1e293b;
+        }
+        html:not(.dark) .theme-panel {
+            background-color: #ffffff;
+            border-color: #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        html.dark .theme-input {
+            background-color: #090d16;
+            border-color: #334155;
+            color: #f8fafc;
+        }
+        html:not(.dark) .theme-input {
+            background-color: #f8fafc;
+            border-color: #cbd5e1;
+            color: #0f172a;
+        }
+
+        html.dark .theme-header-bg {
+            background-color: #131b2e;
+            border-color: #1e293b;
+        }
+        html:not(.dark) .theme-header-bg {
+            background-color: #ffffff;
+            border-color: #e2e8f0;
+        }
+
+        html.dark .theme-text-muted {
+            color: #94a3b8;
+        }
+        html:not(.dark) .theme-text-muted {
+            color: #64748b;
+        }
+
+        html.dark .theme-table-header {
+            background-color: #090d16;
+            color: #94a3b8;
+            border-color: #1e293b;
+        }
+        html:not(.dark) .theme-table-header {
+            background-color: #f1f5f9;
+            color: #475569;
+            border-color: #e2e8f0;
+        }
+
+        html.dark .theme-table-row {
+            border-color: #1e293b;
+        }
+        html:not(.dark) .theme-table-row {
+            border-color: #f1f5f9;
+        }
+
+        .chip {
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .chip:hover {
+            transform: translateY(-1px);
+        }
+
+        /* Autocomplete Suggestions Dropdown */
+        .autocomplete-dropdown {
+            max-height: 280px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden">
+
+    <!-- Top Navigation Bar with Light/Dark Mode Toggle -->
+    <header class="h-14 theme-header-bg border-b px-5 flex items-center justify-between shrink-0 z-30 shadow-sm">
+        <div class="flex items-center space-x-3">
+            <button id="toggleSidebar" class="p-1.5 rounded-md text-slate-400 hover:text-brand-500 hover:bg-slate-800/20 transition focus:outline-none">
+                <i class="fa-solid fa-bars text-base"></i>
+            </button>
+            <div class="flex items-center space-x-2.5">
+                <div class="bg-brand-600 p-1.5 rounded-md text-white shadow-sm">
+                    <i class="fa-solid fa-server text-sm"></i>
+                </div>
+                <div>
+                    <h1 class="font-semibold text-sm tracking-tight">Dynamic Custom Mock Data Engine</h1>
+                    <p class="text-[11px] theme-text-muted">Low-Code Reflection Engine • Port 5001</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Header Controls: Theme Toggle & Status Badge -->
+        <div class="flex items-center space-x-3">
+            <!-- Light / Dark Mode Toggle Button -->
+            <button id="themeToggle" class="flex items-center space-x-2 px-3 py-1.5 rounded-md border text-xs font-medium transition theme-panel hover:border-brand-500">
+                <i id="themeToggleIcon" class="fa-solid fa-moon text-brand-500 text-xs"></i>
+                <span id="themeToggleText">Dark Mode</span>
+            </button>
+
+            <!-- Status Indicator Badge -->
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-950/70 text-emerald-400 border border-emerald-800/60">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 me-1.5 animate-pulse"></span>
+                Backend Online
+            </span>
+        </div>
+    </header>
+
+    <!-- Main Workspace Container -->
+    <div class="flex flex-1 h-[calc(100vh-56px)] min-h-0 overflow-hidden">
+
+        <!-- COLLAPSIBLE SIDEBAR: Independent Isolated Scroll -->
+        <aside id="sidebar" class="w-72 theme-panel border-r flex flex-col transition-all duration-300 ease-in-out shrink-0 h-full min-h-0 overflow-hidden">
+            <div class="p-3.5 border-b border-inherit flex justify-between items-center shrink-0">
+                <h2 class="text-[11px] font-bold theme-text-muted uppercase tracking-wider flex items-center">
+                    <i class="fa-solid fa-folder-tree me-2 text-brand-500"></i>Library Categories
+                </h2>
+                <span id="categoryCountBadge" class="bg-brand-500/10 text-brand-500 text-[11px] px-2 py-0.5 rounded font-mono border border-brand-500/30">0</span>
+            </div>
+
+            <div class="p-3 border-b border-inherit shrink-0">
+                <input type="text" id="sidebarSearch" placeholder="Filter categories..." 
+                       class="w-full theme-input rounded-md px-3 py-1.5 text-xs placeholder-slate-400 focus:outline-none focus:border-brand-500 transition">
+            </div>
+
+            <!-- Scrollable Category Accordion Tree -->
+            <div id="categoryTree" class="flex-1 min-h-0 overflow-y-auto p-3 space-y-1.5 custom-scroll">
+                <div class="text-center py-10 theme-text-muted text-xs">
+                    <i class="fa-solid fa-circle-notch fa-spin text-lg mb-2"></i>
+                    <p>Fetching backend reflection map...</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN WORKSPACE: Fixed Flex Scrolling -->
+        <main id="mainWorkspace" class="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 custom-scroll">
+
+            <!-- ZONE 1: CATALOG SEARCH & GOOGLE-LIKE AUTOCOMPLETE -->
+            <section class="theme-panel border rounded-lg p-5 relative">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-xs font-bold uppercase tracking-wider flex items-center">
+                        <i class="fa-solid fa-magnifying-glass me-2 text-brand-500"></i>Zone 1: Catalog Search & Google-like Autocomplete
+                    </h2>
+                    <span class="text-[11px] theme-text-muted">Instant validation against backend map</span>
+                </div>
+
+                <!-- Google-like Search Input Container -->
+                <div class="relative">
+                    <div class="flex items-center theme-input rounded-md focus-within:border-brand-500 transition">
+                        <span class="px-3 theme-text-muted"><i class="fa-solid fa-magnifying-glass text-xs"></i></span>
+                        <input type="text" id="searchInput" 
+                               placeholder="Type field name (e.g. food.dish, vehicle.model, name.fullName, commerce.price)..." 
+                               class="w-full bg-transparent border-none py-2 text-xs focus:outline-none"
+                               autocomplete="off">
+                        <button id="btnAddField" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium px-4 py-2 rounded-r-md transition flex items-center shrink-0">
+                            <i class="fa-solid fa-plus me-1.5 text-[10px]"></i>Add Field
+                        </button>
+                    </div>
+
+                    <!-- Autocomplete Dropdown List -->
+                    <div id="autocompleteDropdown" class="autocomplete-dropdown hidden absolute left-0 right-0 top-full mt-1 theme-panel border rounded-md shadow-2xl custom-scroll">
+                        <!-- Dynamic autocomplete items -->
+                    </div>
+                </div>
+
+                <!-- Red Warning Alert Toast -->
+                <div id="warningContainer" class="hidden mt-3 p-2.5 bg-red-500/10 border border-red-500/30 rounded-md text-red-500 text-xs flex items-center">
+                    <i class="fa-solid fa-triangle-exclamation me-2 text-sm"></i>
+                    <span>⚠️ Field not available in our backend system library! Only valid catalog fields are permitted.</span>
+                </div>
+            </section>
+
+            <!-- ZONE 2: BUILDER BLUEPRINT & CONFIGURATION -->
+            <section class="theme-panel border rounded-lg p-5">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-xs font-bold uppercase tracking-wider flex items-center">
+                        <i class="fa-solid fa-cubes me-2 text-brand-500"></i>Zone 2: Blueprint Composition & Configuration
+                    </h2>
+                    <button id="btnClearAll" class="text-xs theme-text-muted hover:text-red-500 transition flex items-center">
+                        <i class="fa-solid fa-trash-can me-1 text-[10px]"></i>Clear All
+                    </button>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-xs theme-text-muted mb-2">Selected Blueprint Fields:</label>
+                    <div id="chipsContainer" class="min-h-[64px] p-3 theme-input rounded-md flex flex-wrap gap-2 items-center">
+                        <!-- Dynamic chips -->
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-3 border-t border-inherit">
+                    <div class="flex items-center space-x-3">
+                        <label for="rowCountInput" class="text-xs font-medium">Rows to Generate:</label>
+                        <input type="number" id="rowCountInput" value="10" min="1" max="1000"
+                               class="w-24 theme-input rounded-md px-3 py-1.5 text-xs focus:outline-none focus:border-brand-500 font-mono">
+                        <span class="text-xs theme-text-muted">(1 - 1,000 records)</span>
+                    </div>
+
+                    <!-- Clean Action Button -->
+                    <button id="btnGenerate" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-5 py-2 rounded-md transition shadow flex items-center justify-center">
+                        <i class="fa-solid fa-play me-2 text-[10px]"></i>Generate Dataset
+                    </button>
+                </div>
+            </section>
+
+            <!-- ZONE 3: ADAPTIVE DATA GRID -->
+            <section class="theme-panel border rounded-lg p-5">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xs font-bold uppercase tracking-wider flex items-center">
+                        <i class="fa-solid fa-table-cells me-2 text-brand-500"></i>Zone 3: Adaptive Data Grid
+                    </h2>
+                    <div class="flex items-center space-x-2">
+                        <span id="gridStatus" class="text-xs theme-text-muted me-2">Ready</span>
+                        <button id="btnCopyJson" class="hidden text-xs theme-panel hover:border-brand-500 px-3 py-1 rounded border transition flex items-center">
+                            <i class="fa-solid fa-copy me-1.5 text-[10px]"></i>Copy JSON
+                        </button>
+                        <button id="btnExportCsv" class="hidden text-xs theme-panel hover:border-brand-500 px-3 py-1 rounded border transition flex items-center">
+                            <i class="fa-solid fa-file-csv me-1.5 text-[10px]"></i>Export CSV
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Loading Spinner -->
+                <div id="loadingSpinner" class="hidden text-center py-12">
+                    <i class="fa-solid fa-circle-notch fa-spin text-brand-500 text-2xl mb-2"></i>
+                    <p class="text-xs theme-text-muted">Executing reflection stream across backend providers...</p>
+                </div>
+
+                <!-- Grid Table -->
+                <div id="tableContainer" class="overflow-x-auto rounded-md border border-inherit custom-scroll">
+                    <div class="text-center py-12 theme-text-muted text-xs">
+                        <i class="fa-solid fa-table text-2xl mb-2 block opacity-40"></i>
+                        Select fields and click <strong class="text-emerald-500">Generate Dataset</strong> to render dynamic mock data.
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- JavaScript Application Engine -->
+    <script>
+        const API_BASE = "http://localhost:5001/api";
+        let libraryCatalog = {};
+        let flatCatalogList = [];
+        let selectedFields = ["name.fullName", "food.dish", "commerce.price", "address.city"];
+        let lastGeneratedData = null;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            initApp();
+        });
+
+        async function initApp() {
+            setupThemeToggle();
+            setupSidebarToggle();
+            setupEventListeners();
+            renderChips();
+            await fetchLibraryCatalog();
+        }
+
+        // Theme Toggle (Light / Dark Mode)
+        function setupThemeToggle() {
+            const themeToggleBtn = document.getElementById("themeToggle");
+            const themeIcon = document.getElementById("themeToggleIcon");
+            const themeText = document.getElementById("themeToggleText");
+            const htmlEl = document.documentElement;
+
+            // Load saved theme preference or default to dark
+            const savedTheme = localStorage.getItem("theme") || "dark";
+            setTheme(savedTheme);
+
+            themeToggleBtn.addEventListener("click", () => {
+                const currentTheme = htmlEl.classList.contains("dark") ? "dark" : "light";
+                const newTheme = currentTheme === "dark" ? "light" : "dark";
+                setTheme(newTheme);
+            });
+
+            function setTheme(theme) {
+                if (theme === "dark") {
+                    htmlEl.classList.add("dark");
+                    themeIcon.className = "fa-solid fa-moon text-brand-500 text-xs";
+                    themeText.innerText = "Dark Mode";
+                } else {
+                    htmlEl.classList.remove("dark");
+                    themeIcon.className = "fa-solid fa-sun text-amber-500 text-xs";
+                    themeText.innerText = "Light Mode";
+                }
+                localStorage.setItem("theme", theme);
+                // Re-render chips to apply theme badge classes cleanly
+                renderChips();
+                if (lastGeneratedData) renderGridTable(lastGeneratedData);
+            }
+        }
+
+        async function fetchLibraryCatalog() {
+            const categoryTree = document.getElementById("categoryTree");
+            try {
+                const res = await fetch(`${API_BASE}/catalog`);
+                if (!res.ok) throw new Error("Catalog fetch failed");
+                libraryCatalog = await res.json();
+
+                flatCatalogList = [];
+                Object.keys(libraryCatalog).forEach(cat => {
+                    libraryCatalog[cat].forEach(sub => {
+                        flatCatalogList.push(`${cat}.${sub}`);
+                    });
+                });
+
+                document.getElementById("categoryCountBadge").innerText = Object.keys(libraryCatalog).length;
+                renderCategoryTree(libraryCatalog);
+            } catch (err) {
+                console.error("Failed to load catalog:", err);
+                categoryTree.innerHTML = `
+                    <div class="p-3 bg-red-500/10 border border-red-500/30 rounded text-red-500 text-xs">
+                        Backend disconnected (${API_BASE}). Make sure Spring Boot is running on port 5001.
+                    </div>
+                `;
+            }
+        }
+
+        function renderCategoryTree(catalogData, filterTerm = "") {
+            const treeContainer = document.getElementById("categoryTree");
+            treeContainer.innerHTML = "";
+
+            const categories = Object.keys(catalogData);
+            if (categories.length === 0) {
+                treeContainer.innerHTML = `<div class="text-xs theme-text-muted text-center py-4">No categories match.</div>`;
+                return;
+            }
+
+            categories.forEach(category => {
+                const subTopics = catalogData[category];
+                if (filterTerm && !category.includes(filterTerm) && !subTopics.some(s => s.toLowerCase().includes(filterTerm))) {
+                    return;
+                }
+
+                const catItem = document.createElement("div");
+                catItem.className = "border border-inherit rounded-md overflow-hidden theme-panel mb-1.5";
+
+                const isFood = category === "food";
+                const isCar = category === "car" || category === "vehicle";
+
+                catItem.innerHTML = `
+                    <button class="w-full text-left px-3 py-2 flex items-center justify-between hover:bg-brand-500/10 transition text-xs font-medium"
+                            onclick="toggleCategoryAccordion('${category}')">
+                        <span class="flex items-center capitalize">
+                            <i class="fa-regular fa-folder text-brand-500 me-2 text-[11px]"></i>${category}
+                        </span>
+                        <span class="flex items-center space-x-1.5 theme-text-muted text-[10px]">
+                            <span class="bg-brand-500/10 px-1.5 py-0.5 rounded border border-brand-500/20">${subTopics.length}</span>
+                            <i id="icon-${category}" class="fa-solid fa-chevron-down transition-transform"></i>
+                        </span>
+                    </button>
+                    <div id="sub-${category}" class="${isFood || isCar ? '' : 'hidden'} px-2 py-1.5 border-t border-inherit space-y-1">
+                        ${subTopics.map(sub => {
+                            const fullKey = `${category}.${sub}`;
+                            return `
+                                <div class="flex items-center justify-between text-xs py-1 px-2 rounded hover:bg-brand-500/10 cursor-pointer theme-text-muted hover:text-brand-500 group transition"
+                                     onclick="addField('${fullKey}')">
+                                    <span class="font-mono text-[11px]">${sub}</span>
+                                    <i class="fa-solid fa-plus text-[9px] opacity-0 group-hover:opacity-100 transition"></i>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+                treeContainer.appendChild(catItem);
+            });
+        }
+
+        function toggleCategoryAccordion(category) {
+            const sub = document.getElementById(`sub-${category}`);
+            const icon = document.getElementById(`icon-${category}`);
+            if (sub) {
+                sub.classList.toggle("hidden");
+                if (icon) icon.classList.toggle("rotate-180");
+            }
+        }
+
+        function setupSidebarToggle() {
+            const sidebar = document.getElementById("sidebar");
+            const toggleBtn = document.getElementById("toggleSidebar");
+            toggleBtn.addEventListener("click", () => {
+                sidebar.classList.toggle("w-72");
+                sidebar.classList.toggle("w-0");
+                sidebar.classList.toggle("overflow-hidden");
+            });
+        }
+
+        function setupEventListeners() {
+            const searchInput = document.getElementById("searchInput");
+            const btnAddField = document.getElementById("btnAddField");
+            const btnGenerate = document.getElementById("btnGenerate");
+            const btnClearAll = document.getElementById("btnClearAll");
+            const sidebarSearch = document.getElementById("sidebarSearch");
+            const btnCopyJson = document.getElementById("btnCopyJson");
+            const btnExportCsv = document.getElementById("btnExportCsv");
+
+            searchInput.addEventListener("input", handleSearchAutocomplete);
+            searchInput.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddFromInput();
+                }
+            });
+
+            btnAddField.addEventListener("click", handleAddFromInput);
+            btnGenerate.addEventListener("click", generateData);
+            btnClearAll.addEventListener("click", () => {
+                selectedFields = [];
+                renderChips();
+            });
+
+            sidebarSearch.addEventListener("input", (e) => {
+                const val = e.target.value.toLowerCase().trim();
+                renderCategoryTree(libraryCatalog, val);
+            });
+
+            document.addEventListener("click", (e) => {
+                if (!e.target.closest("#searchInput") && !e.target.closest("#autocompleteDropdown")) {
+                    hideAutocomplete();
+                }
+            });
+
+            btnCopyJson.addEventListener("click", copyJsonToClipboard);
+            btnExportCsv.addEventListener("click", exportCsv);
+        }
+
+        function handleSearchAutocomplete(e) {
+            const query = e.target.value.toLowerCase().trim();
+            const dropdown = document.getElementById("autocompleteDropdown");
+
+            if (!query) {
+                hideAutocomplete();
+                return;
+            }
+
+            const matches = flatCatalogList.filter(item => item.toLowerCase().includes(query)).slice(0, 10);
+
+            if (matches.length === 0) {
+                dropdown.innerHTML = `
+                    <div class="px-4 py-3 text-xs theme-text-muted">
+                        No backend fields found matching "<strong>${escapeHtml(query)}</strong>"
+                    </div>
+                `;
+            } else {
+                dropdown.innerHTML = matches.map(item => `
+                    <div class="suggestion-item px-4 py-2 text-xs cursor-pointer flex justify-between items-center transition"
+                         onclick="selectAutocomplete('${item}')">
+                        <span class="font-mono">${highlightMatch(item, query)}</span>
+                        <span class="text-[10px] theme-text-muted uppercase bg-brand-500/10 px-1.5 py-0.5 rounded border border-brand-500/20">Library</span>
+                    </div>
+                `).join('');
+            }
+
+            dropdown.classList.remove("hidden");
+        }
+
+        function highlightMatch(text, query) {
+            const idx = text.toLowerCase().indexOf(query);
+            if (idx === -1) return escapeHtml(text);
+            const before = text.substring(0, idx);
+            const match = text.substring(idx, idx + query.length);
+            const after = text.substring(idx + query.length);
+            return `${escapeHtml(before)}<strong class="text-brand-500 font-bold">${escapeHtml(match)}</strong>${escapeHtml(after)}`;
+        }
+
+        function selectAutocomplete(fieldName) {
+            addField(fieldName);
+            document.getElementById("searchInput").value = "";
+            hideAutocomplete();
+        }
+
+        function hideAutocomplete() {
+            document.getElementById("autocompleteDropdown").classList.add("hidden");
+        }
+
+        function handleAddFromInput() {
+            const searchInput = document.getElementById("searchInput");
+            const val = searchInput.value.trim();
+            const warningContainer = document.getElementById("warningContainer");
+
+            if (!val) return;
+
+            const isValid = flatCatalogList.some(item => item.toLowerCase() === val.toLowerCase());
+
+            if (!isValid) {
+                warningContainer.classList.remove("hidden");
+                setTimeout(() => {
+                    warningContainer.classList.add("hidden");
+                }, 4000);
+                return;
+            }
+
+            warningContainer.classList.add("hidden");
+            addField(val);
+            searchInput.value = "";
+            hideAutocomplete();
+        }
+
+        function addField(fieldName) {
+            const normalized = fieldName.trim();
+            if (!selectedFields.includes(normalized)) {
+                selectedFields.push(normalized);
+                renderChips();
+            }
+        }
+
+        function removeField(fieldName) {
+            selectedFields = selectedFields.filter(f => f !== fieldName);
+            renderChips();
+        }
+
+        function renderChips() {
+            const chipsContainer = document.getElementById("chipsContainer");
+            chipsContainer.innerHTML = "";
+
+            if (selectedFields.length === 0) {
+                chipsContainer.innerHTML = `<span class="text-xs theme-text-muted italic">No fields selected. Use search bar or sidebar tree to add blueprint fields.</span>`;
+                return;
+            }
+
+            const isDark = document.documentElement.classList.contains("dark");
+            const chipBg = isDark ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-slate-100 border-slate-300 text-slate-800";
+
+            selectedFields.forEach(field => {
+                const chip = document.createElement("div");
+                chip.className = `chip inline-flex items-center ${chipBg} border text-xs px-3 py-1 rounded-full font-mono shadow-sm`;
+                chip.innerHTML = `
+                    <span>${escapeHtml(field)}</span>
+                    <button class="ms-2 theme-text-muted hover:text-red-500 transition font-bold" onclick="removeField('${field}')" title="Remove field">&times;</button>
+                `;
+                chipsContainer.appendChild(chip);
+            });
+        }
+
+        async function generateData() {
+            const tableContainer = document.getElementById("tableContainer");
+            const loadingSpinner = document.getElementById("loadingSpinner");
+            const gridStatus = document.getElementById("gridStatus");
+            const countInput = document.getElementById("rowCountInput");
+            const btnCopyJson = document.getElementById("btnCopyJson");
+            const btnExportCsv = document.getElementById("btnExportCsv");
+
+            if (selectedFields.length === 0) {
+                alert("Please select at least one field to generate data.");
+                return;
+            }
+
+            const count = parseInt(countInput.value) || 10;
+            const fieldsQuery = selectedFields.join(",");
+            const url = `${API_BASE}/generate?fields=${encodeURIComponent(fieldsQuery)}&count=${count}`;
+
+            loadingSpinner.classList.remove("hidden");
+            tableContainer.classList.add("hidden");
+            gridStatus.innerText = "Executing stream...";
+
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                lastGeneratedData = data;
+
+                renderGridTable(data);
+                gridStatus.innerText = `Generated ${data.length} records`;
+                btnCopyJson.classList.remove("hidden");
+                btnExportCsv.classList.remove("hidden");
+            } catch (err) {
+                console.error(err);
+                tableContainer.classList.remove("hidden");
+                tableContainer.innerHTML = `
+                    <div class="p-3 bg-red-500/10 border border-red-500/30 text-red-500 text-xs">
+                        <strong>Execution Error:</strong> ${err.message}. Make sure backend server is running on port 5001.
+                    </div>
+                `;
+                gridStatus.innerText = "Execution failed";
+            } finally {
+                loadingSpinner.classList.add("hidden");
+            }
+        }
+
+        function renderGridTable(dataList) {
+            const tableContainer = document.getElementById("tableContainer");
+            tableContainer.classList.remove("hidden");
+
+            if (!dataList || dataList.length === 0) {
+                tableContainer.innerHTML = `<div class="p-3 text-xs text-amber-500">No data returned.</div>`;
+                return;
+            }
+
+            const keys = Object.keys(dataList[0]);
+
+            let html = `
+                <table class="w-full text-left text-xs border-collapse">
+                    <thead class="theme-table-header uppercase font-mono tracking-wider border-b">
+                        <tr>
+                            <th class="p-3 w-12 theme-text-muted">#</th>
+                            ${keys.map(k => `<th class="p-3">${escapeHtml(k)}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y border-inherit font-mono">
+            `;
+
+            dataList.forEach((row, i) => {
+                html += `
+                    <tr class="theme-table-row hover:bg-brand-500/5 transition">
+                        <td class="p-3 theme-text-muted">${i + 1}</td>
+                        ${keys.map(k => {
+                            const val = row[k];
+                            const isUnsupported = val === "Field Not Supported";
+                            return `
+                                <td class="p-3">
+                                    ${isUnsupported 
+                                        ? `<span class="bg-red-500/10 text-red-500 px-2 py-0.5 rounded text-[10px] font-sans border border-red-500/30">Field Not Supported</span>` 
+                                        : escapeHtml(val)}
+                                </td>
+                            `;
+                        }).join('')}
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table>`;
+            tableContainer.innerHTML = html;
+        }
+
+        function copyJsonToClipboard() {
+            if (!lastGeneratedData) return;
+            navigator.clipboard.writeText(JSON.stringify(lastGeneratedData, null, 2));
+            alert("JSON dataset copied to clipboard!");
+        }
+
+        function exportCsv() {
+            if (!lastGeneratedData || lastGeneratedData.length === 0) return;
+            const keys = Object.keys(lastGeneratedData[0]);
+            let csv = keys.join(",") + "\n";
+            lastGeneratedData.forEach(row => {
+                csv += keys.map(k => `"${String(row[k]).replace(/"/g, '""')}"`).join(",") + "\n";
+            });
+            const blob = new Blob([csv], { type: "text/csv" });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "mock_dataset.csv";
+            a.click();
+        }
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
